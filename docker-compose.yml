@@ -2,6 +2,7 @@ version: "3.2"
 services:
   remoter-server:
     container_name: "biomage-remoter-server"
+    image: "biomage-remoter-server"
     build:
       context: remoter-server/
       target: dev

@@ -77,7 +77,7 @@ run_step <- function(task_name, scdata, config) {
             import::from("/src/test_fn.r", task)
         },
         doubletScores = {
-            import::from("/src/test_fn.r", task)
+            import::from("/src/doublet_scores.r", runDoubletScores)
         },
         dataIntegration = {
             import::from("/src/test_fn.r", task)
