@@ -74,36 +74,40 @@ reload_scdata_from_s3 <- function(pipeline_config, experiment_id) {
     return(obj)
 }
 
+# added funciton
 download_gem_from_s3 <- function(pipeline_config, sample_ids, project_id) {
     s3 <- paws::s3(config=pipeline_config$aws_config)
     message(pipeline_config$originals_bucket)
     
     fnames <- c('features.tsv.gz', 'barcodes.tsv.gz', 'matrix.mtx.gz')
     
-    for (fname in fnames) {
-        gem_key <- file.path(project_id, fname)
-        message(gem_key)
-        
-        # always re-download fresh in case of previously failed download
-        # not sure if this is right?
-        local_dir <- file.path('/data', project_id)
-        unlink(local_dir, recursive = TRUE)
-        dir.create(local_dir)
-        
-        local_fpath <- file.path(local_dir, fname)
-        
-        
-        # Download the file and store the output in a variable
-        c(body, ...rest) %<-% s3$get_object(
-            Bucket = pipeline_config$originals_bucket,
-            Key = gem_key
-        )
-        
-        # Write output to file
-        writeBin(body, con = local_fpath)
+    for (sample in sample_ids) {
+        for (fname in fnames) {
+            gem_key <- file.path(project_id, fname)
+            message(gem_key)
+            
+            # always re-download fresh in case of previously failed download
+            # not sure if this is right?
+            local_dir <- file.path('/data',sample,project_id)
+            unlink(local_dir, recursive = TRUE)
+            dir.create(local_dir)
+            
+            local_fpath <- file.path(local_dir, fname)
+            
+            
+            # Download the file and store the output in a variable
+            c(body, ...rest) %<-% s3$get_object(
+                Bucket = pipeline_config$originals_bucket,
+                Key = gem_key
+            )
+            
+            # Write output to file
+            writeBin(body, con = local_fpath)
+        }
     }
 }
 
+#name changed from runstep
 run_processing_step <- function(scdata, config, task_name, sample_id, debug_config) {
     switch(task_name,
            cellSizeDistribution = {
@@ -285,10 +289,18 @@ run_gem2s <- function(input, pipeline_config) {
     config <- input$config
     
     download_gem_from_s3(pipeline_config, sample_ids, project_id)
-    
-    # TODO: ingest downloaded gem data
-    
-    
+
+    import::here("/src/data-ingest/1_Preproc.r", run_preproc)
+    run_preproc()
+    import::here("/src/data-ingest/2-1_Compute-metrics_emptyDrops.r",run_empty_drops)
+    run_empty_drops()
+    import::here("/src/data-ingest/2-2_Compute-metrics_doublets.r", run_doublet_scores)
+    run_doublet_scores()
+    import::here("/src/data-ingest/3_Seurat.r", run_seurat)
+    run_seurat()
+    import::here("/src/data-ingest/4_Prepare_experiment.r", run_prepare_experiment)
+    run_prepare_experiment()
+    #run_upload_to_aws()
     
 }
 
