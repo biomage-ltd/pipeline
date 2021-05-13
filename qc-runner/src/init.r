@@ -105,7 +105,7 @@ run_processing_step <- function(scdata, config, task_name, sample_id, debug_conf
 #
 run_gem2s_step <- function(task_name,input,pipeline_config){
     switch(task_name,  
-            download_gem = {
+            downloadGem = {
                 import::here("/src/data-ingest/0-download_gem2s.r", task)
             },
             preproc = {
@@ -199,7 +199,7 @@ wrapper <- function(input_json) {
     server <- input$server
     input <- input[names(input) != "server"]
     pipeline_config <- load_config(server)
-    
+    process_name <- input$processName
 
     if (process_name == 'gem2s') {
         message_id <- run_gem2s_step(task_name,input,pipeline_config) 

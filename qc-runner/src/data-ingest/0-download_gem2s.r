@@ -4,8 +4,10 @@ require("zeallot")
 require("ids")
 
 task <- function(input,pipeline_config) {
+
+    # you are receiving the full sample object instead of sample names
     project_id <- input$projectId
-    sample_names <- input$sampleNames
+    sample_names <- input$??? # extract sample names from samples object
 
     s3 <- paws::s3(config=pipeline_config$aws_config)
     message(pipeline_config$originals_bucket)
