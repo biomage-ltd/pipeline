@@ -116,7 +116,7 @@ adding_metrics_and_annotation <- function(scdata, sample, config, min.cells = 3,
 ################################################
 
 
-run_seurat <- function(){
+task <- function(input,pipeline_config){
     # Loading the list with the raw sparse matrixs
     message("reloading old matrices...")
     scdata_list <- readRDS("/output/pre-doublet-scdata_list.rds")

@@ -29,7 +29,7 @@ for (sample_name in names(scdata_list)) {
   compute_doublet_scores(scdata_list[[sample_name]], sample_name)
 }
 
-run_doublet_scores <- function(){
+task <- function(input,pipeline_config){
     message("reloading old matrices...")
     scdata_list <- readRDS("/output/pre-doublet-scdata_list.rds")
 

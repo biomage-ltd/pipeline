@@ -162,7 +162,7 @@ create_dataframe <- function(config){
   return(scdata)
 }
 
-run_preproc <- function() {
+task <- function(input,pipeline_config) {
   message("Loading configuration...")
   config <- RJSONIO::fromJSON("/input/meta.json")
 

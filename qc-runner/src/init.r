@@ -3,6 +3,10 @@ require("paws")
 require("zeallot")
 require("ids")
 
+
+source("handle_data.r")
+source("utils.r")
+
 # if not attached can cause errors when accessing metadata
 require("Seurat")
 
@@ -61,52 +65,6 @@ load_config <- function(development_aws_server) {
     return(config)
 }
 
-reload_scdata_from_s3 <- function(pipeline_config, experiment_id) {
-    s3 <- paws::s3(config=pipeline_config$aws_config)
-    message(pipeline_config$source_bucket)
-    message(paste(experiment_id, "r.rds", sep = "/"))
-    
-    c(body, ...rest) %<-% s3$get_object(
-        Bucket = pipeline_config$source_bucket,
-        Key = paste(experiment_id, "r.rds", sep = "/")
-    )
-    obj <- readRDS(rawConnection(body))
-    return(obj)
-}
-
-# added funciton
-download_gem_from_s3 <- function(pipeline_config, sample_ids, project_id) {
-    s3 <- paws::s3(config=pipeline_config$aws_config)
-    message(pipeline_config$originals_bucket)
-    
-    fnames <- c('features.tsv.gz', 'barcodes.tsv.gz', 'matrix.mtx.gz')
-    
-    for (sample in sample_ids) {
-        for (fname in fnames) {
-            gem_key <- file.path(project_id, fname)
-            message(gem_key)
-            
-            # always re-download fresh in case of previously failed download
-            # not sure if this is right?
-            local_dir <- file.path('/data',sample,project_id)
-            unlink(local_dir, recursive = TRUE)
-            dir.create(local_dir)
-            
-            local_fpath <- file.path(local_dir, fname)
-            
-            
-            # Download the file and store the output in a variable
-            c(body, ...rest) %<-% s3$get_object(
-                Bucket = pipeline_config$originals_bucket,
-                Key = gem_key
-            )
-            
-            # Write output to file
-            writeBin(body, con = local_fpath)
-        }
-    }
-}
-
 #name changed from runstep
 run_processing_step <- function(scdata, config, task_name, sample_id, debug_config) {
     switch(task_name,
@@ -138,172 +96,45 @@ run_processing_step <- function(scdata, config, task_name, sample_id, debug_conf
     return(out)
 }
 
-
-handle_debug <- function(scdata, config, task_name, sample_id, debug_config) {
-    is_debug <- debug_config$step %in% c(task_name, 'all')
-    
-    if (is_debug) {
-        # variable names used by functions
-        seurat_obj <- scdata
-        num_cells_to_downsample <- 6000
-        
-        sample_str <- ifelse(sample_id == '', '', paste0('_', sample_id))
-        fname <- paste0(task_name, sample_str, '.RData')
-        fpath_cont <- file.path('/debug', fname)
-        fpath_host <- file.path(debug_config$path, fname)
-        message(sprintf('⚠️ DEBUG_STEP = %s. Saving arguments.', task_name))
-        save(seurat_obj, config, task_name, sample_id, num_cells_to_downsample, file = fpath_cont)
-        message(sprintf("⚠️ RUN load('%s') to restore environment.", fpath_host))
-    }
-}
-
-
-send_output_to_api <- function(pipeline_config, input, plot_data_keys, output) {
-    c(config, plot_data = plotData) %<-% output
-    
-    # upload output
-    s3 <- paws::s3(config=pipeline_config$aws_config)
-    id <- ids::uuid()
-    output <- RJSONIO::toJSON(
-        list(
-            config = config,
-            plotDataKeys = plot_data_keys,
-            plotData = plot_data
-        )
+#
+# input needs:
+# sampleIds for all samples
+# sampleNames for all samples
+# projectId
+# pipeline_config as defined by load_config
+#
+run_gem2s_step <- function(task_name,input,pipeline_config){
+    switch(task_name,  
+            download_gem = {
+                import::here("/src/data-ingest/0-download_gem2s.r", task)
+            },
+            preproc = {
+                import::here("/src/data-ingest/1_Preproc.r", task)
+            },
+            emptyDrops = {
+                import::here("/src/data-ingest/2-1_Compute-metrics_emptyDrops.r",task)
+            },
+            doubletScores = {
+                import::here("/src/data-ingest/2-2_Compute-metrics_doublets.r", task)
+            },
+            createSeurat = {
+                import::here("/src/data-ingest/3_Seurat.r", task) 
+            },
+            prepareExperiment = {
+                import::here("/src/data-ingest/4_Prepare_experiment.r", task)
+            },
+            stop(paste("Invalid task name given:", task_name))
     )
-    
-    message("Uploading results to S3 bucket", pipeline_config$results_bucket, " at key ", id, "...")
-    s3$put_object(
-        Bucket = pipeline_config$results_bucket,
-        Key = id,
-        Body = charToRaw(output)
-    )
-    
-    message("Sending to SNS topic ", pipeline_config$sns_topic)
-    sns <- paws::sns(config=pipeline_config$aws_config)
-    
-    msg <- list(
-        input = input,
-        output = list(
-            bucket = pipeline_config$results_bucket,
-            key = id
-        ),
-        response = list(
-            error = FALSE
-        )
-    )
-    
-    result <- sns$publish(
-        Message = RJSONIO::toJSON(msg),
-        TopicArn = pipeline_config$sns_topic,
-        MessageAttributes = list(
-            type = list(
-                DataType = "String",
-                StringValue = "PipelineResponse",
-                BinaryValue = NULL
-            )
-        )
-    )
-    
-    return(result$MessageId)
+    task(input,pipeline_config)
 }
 
-send_plot_data_to_s3 <- function(pipeline_config, experiment_id, output) { 
-    plot_data <- output$plotData
-    
-    s3 <- paws::s3(config=pipeline_config$aws_config)
-    
-    plot_names <- names(plot_data)
-    
-    plot_data_keys = list()
-    
-    for(plot_data_name in names(plot_data)){
-        id <- ids::uuid()
-        
-        plot_data_keys[[plot_data_name]] <- id
-        
-        output <- RJSONIO::toJSON(
-            list(
-                plotData = plot_data[[plot_data_name]]
-            )
-        )
-        
-        message("Uploading plotData to S3 bucket", pipeline_config$plot_data_bucket, " at key ", id, "...")
-        s3$put_object(
-            Bucket = pipeline_config$plot_data_bucket,
-            Key = id,
-            Body = charToRaw(output)
-        )
-    }
-    
-    return(plot_data_keys)
-}
-
-upload_matrix_to_s3 <- function(pipeline_config, experiment_id, data) {
-    
-    s3 <- paws::s3(config=pipeline_config$aws_config)
-    
-    object_key <- paste0(experiment_id, '/r.rds')
-    
-    count_matrix <- tempfile()
-    saveRDS(data, file=count_matrix)
-    
-    message("Uploading updated count matrix to S3 bucket ", pipeline_config$processed_bucket, " at key ", object_key, "...")
-    s3$put_object(
-        Bucket = pipeline_config$processed_bucket,
-        Key = object_key,
-        Body = count_matrix
-    )
-    
-    return(object_key)
-}
-
-
-wrapper <- function(input_json) {
-    # Get data from state machine input.
-    input <- RJSONIO::fromJSON(input_json, simplify = FALSE)
-    
-    str(input)
-    
-    # common to gem2s and data processing
-    task_name <- input$taskName
-    server <- input$server
-    input <- input[names(input) != "server"]
-    pipeline_config <- load_config(server)
-    
-    
-    if (task_name == 'gem2s') {
-        message_id <- run_gem2s(input, pipeline_config)
-        
-    } else {
-        message_id <- call_data_processing(task_name, input, pipeline_config)
-    }
-    
-    return(message_id)
-}
-
-run_gem2s <- function(input, pipeline_config) {
-    debug_config <- pipeline_config$debug_config
-    sample_ids <- input$sampleUuids
-    project_id <- input$projectUuid
-    config <- input$config
-    
-    download_gem_from_s3(pipeline_config, sample_ids, project_id)
-
-    import::here("/src/data-ingest/1_Preproc.r", run_preproc)
-    run_preproc()
-    import::here("/src/data-ingest/2-1_Compute-metrics_emptyDrops.r",run_empty_drops)
-    run_empty_drops()
-    import::here("/src/data-ingest/2-2_Compute-metrics_doublets.r", run_doublet_scores)
-    run_doublet_scores()
-    import::here("/src/data-ingest/3_Seurat.r", run_seurat)
-    run_seurat()
-    import::here("/src/data-ingest/4_Prepare_experiment.r", run_prepare_experiment)
-    run_prepare_experiment()
-    #run_upload_to_aws()
-    
-}
-
+#
+# call_data_processing
+# Runs step @task_name of the data processing pipeline, send plot data to s3 and output message to api.
+# IN task_name: str, name of the step.
+# IN input: json str, config settings for all samples, current sample uuid, uploadCountMatrix (whether or not to upload after step) 
+# IN pipeline_config: json str, environment config resulting from the load_config function
+#
 call_data_processing <- function(task_name, input, pipeline_config) {
     
     experiment_id <- input$experimentId
@@ -350,6 +181,41 @@ call_data_processing <- function(task_name, input, pipeline_config) {
     return(message_id)
 }
 
+#
+# Wrapper(input_json)
+# IN input_json: json input from message. Input should have:
+# taskname, server, extra config parameters. 
+# 
+# Calls the appropiate process: data processing pipeline or gem2s.     
+# 
+wrapper <- function(input_json) {
+    # Get data from state machine input.
+    input <- RJSONIO::fromJSON(input_json, simplify = FALSE)
+    
+    str(input)
+    
+    # common to gem2s and data processing
+    task_name <- input$taskName
+    server <- input$server
+    input <- input[names(input) != "server"]
+    pipeline_config <- load_config(server)
+    
+
+    if (process_name == 'gem2s') {
+        message_id <- run_gem2s_step(task_name,input,pipeline_config) 
+    }else if(process_name == 'pipeline'){
+        message_id <- call_data_processing(task_name, input, pipeline_config)
+    }else{
+        stop("Process name not recognized.")
+    }
+    
+    return(message_id)
+}
+
+#
+# Init()
+# Loads configuration and repeats the wrapper call until no more messages are received. 
+#
 init <- function() {
     
     pipeline_config <- load_config('host.docker.internal')

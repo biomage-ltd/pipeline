@@ -44,7 +44,7 @@ compute_emptydrops <- function(scdata, sample_name) {
   }
 }
 
-run_empty_drops <- function(){
+task <- function(input,pipeline_config){
   message("reloading old matrices...")
   scdata_list <- readRDS("/output/pre-doublet-scdata_list.rds")
 
