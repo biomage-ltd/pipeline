@@ -166,6 +166,14 @@ task <- function(input,pipeline_config) {
   message("Loading configuration...")
   config <- RJSONIO::fromJSON("/input/meta.json")
 
+  print("Config:")
+  print(config)
+  print("Current working directory:")
+  print(getwd())
+  print("Experiment folder status:")
+  print(list.files(paste("/input",sep = "/"),all.files=TRUE,full.names=TRUE,recursive=TRUE))
+
+
   # We include in variable scdata_list all the sparse matrix per sample
   message("Creating raw dataframe...")
   scdata_list <- create_dataframe(config)
@@ -175,4 +183,5 @@ task <- function(input,pipeline_config) {
   saveRDS(scdata_list, file = "/output/pre-doublet-scdata_list.rds", compress = FALSE)
 
   message("Step 1 completed.")
+  print(list.files(paste("/output",sep = "/"),all.files=TRUE,full.names=TRUE,recursive=TRUE))
 }

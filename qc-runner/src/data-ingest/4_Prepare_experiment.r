@@ -14,11 +14,52 @@ suppressWarnings(library(gprofiler2))
 
 set.seed(123)
 options(future.globals.maxSize= 1000 * 1024 ^ 2)
-source("/data-ingest/src/test_object.r")
-source("/data-ingest/src/help.r")
-source("/data-ingest/src/QC_helpers/cellSizeDistribution_config.r")
-source("/data-ingest/src/QC_helpers/numGenesVsNumUmis_config.r")
-source("/data-ingest/src/QC_helpers/doubletScores_config.r")
+source("test_object.r")
+source("help.r")
+
+
+cellSizeDistribution_config <- function(seurat_obj, config) {
+    import::here("cellSizeDistribution.r",generate_default_values_cellSizeDistribution)    
+    minCellSize <- generate_default_values_cellSizeDistribution(seurat_obj,config,1e2)
+    # update config
+    config$filterSettings$minCellSize <- minCellSize
+
+    return(config)
+}
+
+# There are some config parameters that depends on the data it-self. In this file we are going to create the functions
+# that allow us to compute the best config parameter for Data Processing in the doubletScores step.
+
+# To identify intelligently the treshold we are going to use the logic inside scDblFinder, which creates a classification
+# (singlet our doublet) [ref: https://bioconductor.org/packages/release/bioc/vignettes/scDblFinder/inst/doc/2_scDblFinder.html#thresholding-and-local-calibration]
+# To set the auto value we are going to use as a threshold the maximun score that is given to a singlet. 
+
+doubletScores_config <- function(scdata, config){
+
+    # Minimun score that has a singlet 
+    probabilityThreshold <-  max(scdata$doublet_scores[scdata$doublet_class=="singlet"])
+    # update config
+    config$filterSettings$probabilityThreshold <- probabilityThreshold
+
+    return(config)
+}
+
+
+
+# There are some config parameters that depends on the data it-self. In this file we are going to create the functions
+# that allow us to compute the best config parameter for Data Processing in the numGenesVsNumUmis step.
+
+numGenesVsNumUmis_config <- function(scdata, config){
+
+    # Sensible values are based on the funciton "gene.vs.molecule.cell.filter" from the pagoda2 package
+    p.level <-  min(0.001, 1/ncol(scdata))
+    # update config
+    config$filterSettings$regressionTypeSettings[[config$filterSettings$regressionType]]$p.level <- p.level
+
+    return(config)
+}
+
+
 
 ################################################
 ## SAVING CONFIG FILE 
@@ -139,76 +180,77 @@ task <- function(input,pipeline_config){
 
     message("Storing color pool...")
     # We store the color pool in a slot in order to be able to access it during configureEmbedding
-    color_pool <- RJSONIO::fromJSON("/data-ingest/src/color_pool.json")
+    color_pool <- RJSONIO::fromJSON("data-ingest/color_pool.json")
     seurat_obj@misc[["color_pool"]] <- color_pool
-
+    message("Stored pool")
+    
     ################################################
     ## Checking filtered data
     ################################################
 
     df_flag_filtered <- read.delim("/output/df_flag_filtered.txt")
     any_filtered <- "Filtered" %in% df_flag_filtered$flag_filtered
-
+    message("saved filtered flag")
     # Im leaving the qc plots for now. If we dont use them we might want to remove them.
     ################################################
     ## QC plots
     ################################################
 
-    if (!dir.create("/output/QC_plots")) 
-        dir.create("/output/QC_plots")
+    # if (!dir.create("/output/QC_plots")) 
+    #     dir.create("/output/QC_plots")
 
-    pdf("/output/QC_plots/mitochondrialFractionLogHistogram.pdf")
-    hist(seurat_obj$percent.mt, breaks=200)
-    dev.off()
+    # pdf("/output/QC_plots/mitochondrialFractionLogHistogram.pdf")
+    # hist(seurat_obj$percent.mt, breaks=200)
+    # dev.off()
 
-    pdf("/output/QC_plots/mitochondrialFractionLogScatter.pdf")
-    plot(seurat_obj$nCount_RNA, seurat_obj$percent.mt)
-    dev.off()
+    # pdf("/output/QC_plots/mitochondrialFractionLogScatter.pdf")
+    # plot(seurat_obj$nCount_RNA, seurat_obj$percent.mt)
+    # dev.off()
 
-    pdf("/output/QC_plots/UMI_hist.pdf",width = 14, height = 7)
-    par(mfcol=c(1,2),cex.lab=2)
-    hist(colSums(seurat_obj@assays$RNA@data), breaks=200)
-    hist(rowSums(seurat_obj@assays$RNA@data), breaks=200)
-    dev.off()
+    # pdf("/output/QC_plots/UMI_hist.pdf",width = 14, height = 7)
+    # par(mfcol=c(1,2),cex.lab=2)
+    # hist(colSums(seurat_obj@assays$RNA@data), breaks=200)
+    # hist(rowSums(seurat_obj@assays$RNA@data), breaks=200)
+    # dev.off()
 
-    genes_umi <- rowSums(seurat_obj@assays$RNA@data)
-    counts <- colSums(seurat_obj@assays$RNA@data)
+    # genes_umi <- rowSums(seurat_obj@assays$RNA@data)
+    # counts <- colSums(seurat_obj@assays$RNA@data)
 
-    pdf("/output/QC_plots/nCount_vs_mito.fr_hist.pdf")
-    plot(seurat_obj@meta.data$nCount_RNA, seurat_obj@meta.data$percent.mt)
-    dev.off()
+    # pdf("/output/QC_plots/nCount_vs_mito.fr_hist.pdf")
+    # plot(seurat_obj@meta.data$nCount_RNA, seurat_obj@meta.data$percent.mt)
+    # dev.off()
 
-    pdf("/output/QC_plots/GenesVsNumUmis.pdf")
-    plot(seurat_obj@meta.data$nCount_RNA, seurat_obj@meta.data$nFeature_RNA)
-    dev.off()
+    # pdf("/output/QC_plots/GenesVsNumUmis.pdf")
+    # plot(seurat_obj@meta.data$nCount_RNA, seurat_obj@meta.data$nFeature_RNA)
+    # dev.off()
 
 
-    sink("/output/QC_plots/routput.Rout")
-    print("UMI counts of highest expressed genes")
-    tail(sort(genes_umi), n=30)
-    print("median rowsums")
-    median(rowSums(seurat_obj@assays$RNA@data))
-    sink()
+    # sink("/output/QC_plots/routput.Rout")
+    # print("UMI counts of highest expressed genes")
+    # tail(sort(genes_umi), n=30)
+    # print("median rowsums")
+    # median(rowSums(seurat_obj@assays$RNA@data))
+    # sink()
 
-    # some dignostic plots for empty-drops
-    meta.data <- seurat_obj@meta.data
-    if(all(!is.na(meta.data$emptyDrops_FDR))){
-        pdf("/output/QC_plots/emptyDrops_Total_hist.pdf",width = 16, height = 14)
-        par(mfcol=c(2,2),cex.lab=2)
-        plot1_data_1  <- log10(meta.data$emptyDrops_FDR)
-        names(plot1_data_1) <- rep("FDR", length(plot1_data_1))
-        plot1_data_2  <- log10(meta.data$nCount_RNA)
-        names(plot1_data_2) <- rep("log_u", length(plot1_data_2))
-        plot(log10(meta.data$nCount_RNA),log10(meta.data$emptyDrops_FDR))
-        plot((meta.data$nCount_RNA),(meta.data$emptyDrops_FDR))
-        dev.off()
-    }
+    # # some dignostic plots for empty-drops
+    # meta.data <- seurat_obj@meta.data
+    # if(all(!is.na(meta.data$emptyDrops_FDR))){
+    #     pdf("/output/QC_plots/emptyDrops_Total_hist.pdf",width = 16, height = 14)
+    #     par(mfcol=c(2,2),cex.lab=2)
+    #     plot1_data_1  <- log10(meta.data$emptyDrops_FDR)
+    #     names(plot1_data_1) <- rep("FDR", length(plot1_data_1))
+    #     plot1_data_2  <- log10(meta.data$nCount_RNA)
+    #     names(plot1_data_2) <- rep("log_u", length(plot1_data_2))
+    #     plot(log10(meta.data$nCount_RNA),log10(meta.data$emptyDrops_FDR))
+    #     plot((meta.data$nCount_RNA),(meta.data$emptyDrops_FDR))
+    #     dev.off()
+    # }
 
     ################################################
     ## Testing Seurat object before save
     ################################################
 
-    test_object(seurat_obj)
+    #test_object(seurat_obj)
 
     ################################################
     ## Saving files
@@ -259,18 +301,18 @@ task <- function(input,pipeline_config){
     )
 
     message("saving normalized matrix...")
-    Matrix::writeMM(t(seurat_obj@assays[[seurat_obj@active.assay]]@data
-                    ), file = "/output/r-out-normalized.mtx")
+    #Matrix::writeMM(t(seurat_obj@assays[[seurat_obj@active.assay]]@data
+    #                ), file = "/output/r-out-normalized.mtx")
 
-    message("saving raw matrix...")
-    Matrix::writeMM(t(
-        seurat_obj@assays[["RNA"]]@counts[
-            rownames(seurat_obj),
-            colnames(seurat_obj)
-        ]),
-        file = "/output/r-out-raw.mtx", verb
-    )
-
+    #message("saving raw matrix...")
+    #Matrix::writeMM(t(
+    #    seurat_obj@assays[["RNA"]]@counts[
+    #        rownames(seurat_obj),
+    #        colnames(seurat_obj)
+    #    ]),
+    #    file = "/output/r-out-raw.mtx", verb
+    #)
+    print(seurat_obj)
 
 
     ################################################
@@ -357,6 +399,7 @@ task <- function(input,pipeline_config){
     write(exportJson, "/output/config_dataProcessing.json")
 
     message("Step 4 completed.")
+    print(list.files(paste("/output",sep = "/"),all.files=TRUE,full.names=TRUE,recursive=TRUE))
 }
 
 

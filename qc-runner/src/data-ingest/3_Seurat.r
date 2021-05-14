@@ -10,7 +10,7 @@ suppressWarnings(library(Matrix))
 suppressWarnings(library(dplyr))
 suppressWarnings(require(data.table))
 suppressWarnings(library(gprofiler2))
-source("/data-ingest/src/help.r")
+source("help.r")
 
 
 
@@ -118,6 +118,8 @@ adding_metrics_and_annotation <- function(scdata, sample, config, min.cells = 3,
 
 task <- function(input,pipeline_config){
     # Loading the list with the raw sparse matrixs
+    print("Starting")
+    print(list.files(paste("/output",sep = "/"),all.files=TRUE,full.names=TRUE,recursive=TRUE))
     message("reloading old matrices...")
     scdata_list <- readRDS("/output/pre-doublet-scdata_list.rds")
 
@@ -140,5 +142,6 @@ task <- function(input,pipeline_config){
     write.table(df_flag_filtered, "/output/df_flag_filtered.txt", col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
 
     message("Step 3 completed.")
+    print(list.files(paste("/output",sep = "/"),all.files=TRUE,full.names=TRUE,recursive=TRUE))
 }
 

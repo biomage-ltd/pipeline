@@ -104,6 +104,7 @@ run_processing_step <- function(scdata, config, task_name, sample_id, debug_conf
 # pipeline_config as defined by load_config
 #
 run_gem2s_step <- function(task_name,input,pipeline_config){
+    print("GEM2S")
     switch(task_name,  
             downloadGem = {
                 import::here("/src/data-ingest/0-download_gem2s.r", task)
@@ -125,6 +126,7 @@ run_gem2s_step <- function(task_name,input,pipeline_config){
             },
             stop(paste("Invalid task name given:", task_name))
     )
+    print("Starting task")
     task(input,pipeline_config)
 }
 
@@ -202,6 +204,7 @@ wrapper <- function(input_json) {
     process_name <- input$processName
 
     if (process_name == 'gem2s') {
+        message("entering Gem2s")
         message_id <- run_gem2s_step(task_name,input,pipeline_config) 
     }else if(process_name == 'pipeline'){
         message_id <- call_data_processing(task_name, input, pipeline_config)
