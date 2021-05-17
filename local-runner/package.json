@@ -9,7 +9,7 @@
     "test:debug": "node --inspect node_modules/.bin/jest --runInBand --silent",
     "coverage": "jest --coverage --silent",
     "dev": "nodemon src/app.js",
-    "build": "docker build -t biomage-pipeline-runner ../qc-runner",
+    "build": "docker build -t biomage-pipeline-runner ../pipeline-runner",
     "start": "node src/app.js",
     "restart": "npm run build && npm start",
     "lint": "eslint ./src",

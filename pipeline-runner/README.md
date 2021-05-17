@@ -1,4 +1,4 @@
-qc-runner
+pipeline-runner
 =========
 
 Docker container for executing dependency-managed tasks.

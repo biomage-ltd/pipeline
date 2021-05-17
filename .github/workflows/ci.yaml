@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        project: ['qc-runner']
+        project: ['pipeline-runner']
     outputs:
       repo-name: ${{ steps.ref.outputs.repo-name }}
       tag: ${{ steps.ref.outputs.tag }}
@@ -187,9 +187,9 @@ jobs:
           | yq w -d1 - metadata.labels.sandboxId "$SANDBOX_ID" \
           | yq w -d1 - spec.chart.ref "$CHART_REF" \
           | yq w -d1 - spec.releaseName "$DEPLOYMENT_NAME" \
-          | yq w -d1 - spec.values.qc-runner.image "$IMAGE_NAME-qc-runner" \
+          | yq w -d1 - spec.values.pipeline-runner.image "$IMAGE_NAME-pipeline-runner" \
           | yq w -d1 - spec.values.serviceAccount.iamRole "arn:aws:iam::${{ steps.setup-aws.outputs.aws-account-id }}:role/pipeline-role-${{ matrix.environment }}" \
-          | yq w -d1 - "metadata.annotations[filter.fluxcd.io/qc-runner]" "glob:${IMAGE_TAG/$GITHUB_SHA/*}-qc-runner" \
+          | yq w -d1 - "metadata.annotations[filter.fluxcd.io/pipeline-runner]" "glob:${IMAGE_TAG/$GITHUB_SHA/*}-pipeline-runner" \
           > $DEPLOYMENT_NAME.yaml
 
           cat $DEPLOYMENT_NAME.yaml

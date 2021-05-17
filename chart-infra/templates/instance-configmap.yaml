@@ -6,4 +6,4 @@ metadata:
   labels:
     sandboxId: "{{ .Values.sandboxId }}"
 data:
-  qc-runner: "{{ index .Values "qc-runner" "image" }}"
+  pipeline-runner: "{{ index .Values "pipeline-runner" "image" }}"

@@ -48,7 +48,7 @@ make build
 
 ## Debugging locally
 To save the parameters (`config`, `seurat_obj`, etc) to a task function, specify DEBUG_STEP and DEBUG_PATH.
-Available tasks include all those defined in `run_step` of  [init.r](qc-runner/src/init.r) as well as `DEBUG_STEP=all` 
+Available tasks include all those defined in `run_step` of  [init.r](pipeline-runner/src/init.r) as well as `DEBUG_STEP=all` 
 to save the parameters to all task functions:
 
 ```bash
