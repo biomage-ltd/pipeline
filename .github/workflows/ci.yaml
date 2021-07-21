@@ -8,7 +8,6 @@ jobs:
   build-docker:
     name: Build Docker container
     runs-on: ubuntu-20.04
-    if: startsWith(github.event.pull_request.head.ref, 'release/') || startsWith(github.event.pull_request.head.ref, 'hotfix/') # allow PRs to master for releases & hotfixes
     strategy:
       matrix:
         project: ['pipeline-runner']
@@ -29,6 +28,9 @@ jobs:
           # This will take a ref like `refs/heads/master`
           # and turn it into `refs-heads-master`
           REF_ID=$(echo $GITHUB_REF | sed 's/\//-/g')
+
+          echo THIS BUILD HOTFIX/RELEASE IS RUNNING!! WOOT!
+          
 
           # the final tag is something like:
           # refs-heads-master-a4f8bc313dae
@@ -191,6 +193,8 @@ jobs:
           fi
 
           echo "::set-output name=sandbox-id::$SANDBOX_ID"
+
+          which yq
 
           yq w -d1 .flux.yaml metadata.namespace "$DEPLOYMENT_NAME-$SANDBOX_ID" \
           | yq w -d0 - metadata.name "$DEPLOYMENT_NAME-$SANDBOX_ID" \
