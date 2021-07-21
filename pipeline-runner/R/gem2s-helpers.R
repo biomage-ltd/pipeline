@@ -17,12 +17,12 @@ get_doublet_score <- function(sample) {
   return(as.data.frame(scores))
 }
 
-print_config <- function(step_number,step_name,input,pipeline_config,config){
+print_config <- function(step_number, step_name, input, pipeline_config, config){
   message("------- Running step ", step_number, ": ", step_name, " -------")
   message("Step config:")
-  message(input)
+  print(input)
   message("Pipeline config")
-  message(pipeline_config)
+  print(pipeline_config)
   message("Current working directory:")
   message(getwd())
   message("Experiment folder status:")
@@ -34,24 +34,24 @@ print_config <- function(step_number,step_name,input,pipeline_config,config){
 # check_config function
 #' @description Create metadata dataframe from config files
 #' @param scdata matrix with barcodes as columns to assign metadata information
-#' @param sample name of the sample to retrieve the metadata
+#' @param sample_id id of the sample to retrieve the metadata
 #' @param config config list from meta.json
 #'
 #' @export
 #' @return dataframe with metadata information of the sample
 
-check_config <- function(scdata, sample, config) {
-  metadata <- NULL
-  metadata <- data.frame(row.names = colnames(scdata), samples = rep(sample, ncol(scdata)))
+check_config <- function(scdata, sample_id, sample_name, config) {
+
+  metadata <- data.frame(row.names = colnames(scdata),
+                         samples = rep(sample_id, ncol(scdata)),
+                         sample_name = rep(sample_name, ncol(scdata)))
 
   # Check if "metadata" exists on config. If it is TRUE, we have other metadata information that we are
   # going to include in our experiment.
   if ("metadata" %in% names(config)) {
     rest_metadata <- as.data.frame(config$metadata)
-    rest_metadata$sample <- config$samples
-    for (var in colnames(rest_metadata)) {
-      metadata[, var] <- rest_metadata[, var][match(metadata$sample, rest_metadata$sample)]
-    }
+    rest_metadata <- rest_metadata[match(metadata$samples, config$samples),, drop = FALSE]
+    metadata <- cbind(metadata, rest_metadata)
   }
 
   return(metadata)

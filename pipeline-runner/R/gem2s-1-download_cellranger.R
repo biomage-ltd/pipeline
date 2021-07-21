@@ -1,6 +1,5 @@
 download_cellranger <- function(input, pipeline_config) {
   project_id <- input$projectId
-  sample_names <- input$sampleNames
   sample_uuids <- input$sampleIds
 
   print_config(1, "Cellranger", input, pipeline_config, list())
@@ -17,7 +16,6 @@ download_cellranger <- function(input, pipeline_config) {
       message("GEM key")
       message(gem_key)
 
-      sample_name <- sample_names[[match(sample, sample_uuids)]]
       # Preparing directories
       local_dir <- file.path("/input", sample)
       dir.create("/input")

@@ -60,6 +60,12 @@ prepare_experiment <- function(input, pipeline_config) {
   scdata@misc[["experimentId"]] <- input$experimentId
   scdata@misc[["ingestionDate"]] <- Sys.time()
 
+
+  if ("metadata" %in% names(config)) {
+    message("Storing metadata...")
+    scdata@misc[['meta_vars']] <- names(config$metadata)
+  }
+
   # CHECK FILTERED DATA
   # -
 
@@ -77,28 +83,6 @@ prepare_experiment <- function(input, pipeline_config) {
 
   message("saving R object...")
   saveRDS(scdata, file = "/output/experiment.rds", compress = FALSE)
-
-  message("saving multsiample info...")
-  write.table(
-    data.frame(Cells_ID = scdata$cells_id, Value = scdata$samples),
-    file = "/output/samples-cells.csv",
-    quote = F, col.names = F, row.names = F,
-    sep = "\t"
-  )
-
-
-  if ("metadata" %in% names(config)) {
-    variables_metadata <- names(config$metadata)
-    metadata_dynamo <- scdata@meta.data[, c("cells_id", variables_metadata)]
-
-    message("saving metadata info...")
-    write.table(
-      metadata_dynamo,
-      file = "/output/metadata-cells.csv",
-      quote = F, col.names = T, row.names = F,
-      sep = "\t"
-    )
-  }
 
   write.table(
     colnames(scdata),

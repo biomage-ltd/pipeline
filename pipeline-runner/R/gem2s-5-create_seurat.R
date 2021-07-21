@@ -22,7 +22,14 @@ create_seurat <- function(input, pipeline_config) {
   scdata_list <- scdata_list[samples]
   message("Creating Seurat Object...")
 
-  flag_filtered <- sapply(names(scdata_list), function(sample_name) adding_metrics_and_annotation(scdata_list[[sample_name]], sample_name, config))
+  sample_names <- unlist(input$sampleNames)
+  names(sample_names) <- unlist(input$sampleIds)
+
+  flag_filtered <- sapply(names(scdata_list), function(sample_id) {
+    sample_name <- sample_names[sample_id]
+    adding_metrics_and_annotation(scdata_list[[sample_id]], sample_id, sample_name, config)
+  })
+
   df_flag_filtered <- data.frame(samples = samples, flag_filtered = ifelse(flag_filtered, "Filtered", "Unfiltered"))
   write.table(df_flag_filtered, "/output/df_flag_filtered.txt", col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
 
@@ -53,22 +60,22 @@ create_seurat <- function(input, pipeline_config) {
 #'
 #' @return in the case that the input data was pre-filtered, we return a flag in order to disable the classifier filter.
 #' This flag is going to be store in the dynamoDB inside the samples-table.
-adding_metrics_and_annotation <- function(scdata, sample, config, min.cells = 3, min.features = 10) {
-  message("Converting into seurat object sample --> ", sample)
+adding_metrics_and_annotation <- function(scdata, sample_id, sample_name, config, min.cells = 3, min.features = 10) {
+  message("Converting into seurat object sample --> ", sample_id)
 
-  metadata <- check_config(scdata, sample, config)
+  metadata <- check_config(scdata, sample_id, sample_name, config)
   scdata <- Seurat::CreateSeuratObject(scdata, assay = "RNA", min.cells = min.cells, min.features = min.features, meta.data = metadata, project = config$name)
 
   organism <- config$organism
 
-  # message("[", sample, "] \t finding genome annotations for genes...")
+  # message("[", sample_id, "] \t finding genome annotations for genes...")
   # annotations <- gprofiler2::gconvert(
   # query = rownames(scdata), organism = organism, target="ENSG", mthreshold = Inf, filter_na = FALSE)
 
   annotations <- read.delim("/output/features_annotations.tsv")
 
   if (any(grepl("^mt-", annotations$name, ignore.case = T))) {
-    message("[", sample, "] \t Adding MT information...")
+    message("[", sample_id, "] \t Adding MT information...")
     mt.features <- annotations$input[grep("^mt-", annotations$name, ignore.case = T)]
     mt.features <- mt.features[mt.features %in% rownames(scdata)]
     if (length(mt.features)) {
@@ -78,8 +85,8 @@ adding_metrics_and_annotation <- function(scdata, sample, config, min.cells = 3,
 
   if (is.null(scdata@meta.data$percent.mt)) scdata$percent.mt <- 0
 
-  message("[", sample, "] \t Getting scrublet results...")
-  scores <- get_doublet_score(sample)
+  message("[", sample_id, "] \t Getting scrublet results...")
+  scores <- get_doublet_score(sample_id)
   rownames(scores) <- scores$barcodes
 
   idt <- scores$barcodes[scores$barcodes %in% rownames(scdata@meta.data)]
@@ -88,10 +95,8 @@ adding_metrics_and_annotation <- function(scdata, sample, config, min.cells = 3,
   # (https://bioconductor.org/packages/release/bioc/vignettes/scDblFinder/inst/doc/2_scDblFinder.html#thresholding-and-local-calibration)
   scdata@meta.data[idt, "doublet_class"] <- scores[idt, "doublet_class"]
 
-  message("[", sample, "] \t Adding emptyDrops...")
-  file_ed <- paste("/output/pre-emptydrops-", sample, ".rds", sep = "")
-
-  suppressWarnings(library(dplyr))
+  message("[", sample_id, "] \t Adding emptyDrops...")
+  file_ed <- paste("/output/pre-emptydrops-", sample_id, ".rds", sep = "")
 
   if (file.exists(file_ed)) {
     scdata@tools$flag_filtered <- FALSE
@@ -125,8 +130,8 @@ adding_metrics_and_annotation <- function(scdata, sample, config, min.cells = 3,
     dir.create("/output/rds_samples")
   }
 
-  message("[", sample, "] Saving R object...")
-  saveRDS(scdata, file = paste("/output/rds_samples/", sample, ".rds", sep = ""), compress = FALSE)
+  message("[", sample_id, "] Saving R object...")
+  saveRDS(scdata, file = paste("/output/rds_samples/", sample_id, ".rds", sep = ""), compress = FALSE)
 
   return(scdata@tools$flag_filtered)
 }
